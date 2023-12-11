@@ -51,7 +51,7 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
   console.log(req.file);
 
   try {
-    await bucket.upload("./uploads/" + req.file.path);
+    await bucket.upload("./" + req.file.path);
   } catch (err) {
     console.log(err);
   }
