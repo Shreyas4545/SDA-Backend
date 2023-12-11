@@ -46,7 +46,7 @@ const upload = multer({ storage: storage2 });
 
 let fileurl;
 
-app.post("/api/products", upload.single("image"), async (req, res) => {
+app.post("/api/new", upload.single("image"), async (req, res) => {
   const storage = admin.storage();
   // const bucket = admin.storage().bucket();
 
@@ -168,23 +168,13 @@ app.get("/", async (req, res) => {
   });
 });
 
-app.post("/api/new", upload.single("image"), async (req, res) => {
+app.post("/api/products", upload.single("image"), async (req, res) => {
   // create a reference
+  let { productName, categoryName, description } = req.body;
+
   try {
     // Grab the file
     const file = req.file;
-    // Format the filename
-    // const timestamp = Date.now();
-    // const name = file.originalname.split(".")[0];
-    // const type = file.originalname.split(".")[1];
-    // const fileName = `${name}_${timestamp}.${type}`;
-    // // Step 1. Create reference for file name in cloud storage
-    // const imageRef = storage.child(fileName);
-    // // Step 2. Upload the file in the bucket storage
-    // const snapshot = await imageRef.put(file.buffer);
-    // // Step 3. Grab the public url
-    // const downloadURL = await snapshot.ref.getDownloadURL();
-
     const timestamp = Date.now();
     const name = file.originalname.split(".")[0];
     const type = file.originalname.split(".")[1];
@@ -208,7 +198,23 @@ app.post("/api/new", upload.single("image"), async (req, res) => {
       expires: "03-09-2491", // Adjust the expiration date as needed
     });
 
-    return res.send(downloadURL[0]);
+    const pr = await ProductData.create({
+      productName,
+      categoryName,
+      description,
+      image: downloadURL[0],
+    });
+
+    if (!pr) {
+      return res.status(500).json({
+        message: "error creating user",
+      });
+    }
+    return res.status(201).json({
+      success: true,
+      message: "Product Created Successfully !",
+      data: pr,
+    });
   } catch (error) {
     console.log(error);
     res.status(400).send(error.message);
