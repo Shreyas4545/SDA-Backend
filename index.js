@@ -4,6 +4,7 @@ const bodyParser = require("body-parser");
 const app = express();
 const cors = require("cors");
 const db = require("./config/init.js");
+const storage = require("./config/init.js");
 var admin = require("firebase-admin");
 const multer = require("multer");
 const fs = require("fs");
@@ -29,71 +30,111 @@ app.listen(9001, () => {
   console.log("Server is running on port 9001");
 });
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "./uploads");
-  },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  },
-});
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     cb(null, "./uploads");
+//   },
+//   filename: (req, file, cb) => {
+//     cb(null, file.originalname);
+//   },
+// });
 
-const upload = multer({ storage: storage });
+// const upload = multer({ storage: storage });
+const storage2 = multer.memoryStorage(); // Store files in memory instead of writing to disk
+
+const upload = multer({ storage: storage2 });
+
 let fileurl;
 
 app.post("/api/products", upload.single("image"), async (req, res) => {
   const storage = admin.storage();
+  // const bucket = admin.storage().bucket();
 
   const bucket = storage.bucket("gs://event-bf7c6.appspot.com");
 
-  let { productName, categoryName, description } = req.body;
+  // let { productName, categoryName, description } = req.body;
 
-  console.log(req.file);
+  // console.log(req.file);
 
-  try {
-    await bucket.upload("./" + req.file.path);
-  } catch (err) {
-    console.log(err);
-  }
+  // try {
+  //   await bucket.upload("./" + req.file.path);
+  // } catch (err) {
+  //   console.log(err);
+  // }
 
-  const file = await bucket.file(req.file.originalname);
-  await file
-    .getSignedUrl({
-      action: "read",
-      expires: "03-09-2491",
-    })
-    .then((url) => {
-      console.log(url);
-      fileurl = url;
-    })
-    .catch((err) => {
-      console.log(err);
-    });
+  // const file = await bucket.file(req.file.originalname);
+  // await file
+  //   .getSignedUrl({
+  //     action: "read",
+  //     expires: "03-09-2491",
+  //   })
+  //   .then((url) => {
+  //     console.log(url);
+  //     fileurl = url;
+  //   })
+  //   .catch((err) => {
+  //     console.log(err);
+  //   });
 
-  await fs.unlink(req.file.path, function (err) {
-    if (err) {
-      console.log(err);
-    } else {
-      console.log("Deleted the file");
-    }
+  // await fs.unlink(req.file.path, function (err) {
+  //   if (err) {
+  //     console.log(err);
+  //   } else {
+  //     console.log("Deleted the file");
+  //   }
+  // });
+
+  //new code
+  const fileName = req.file.originalname;
+
+  // Upload the file to Firebase Storage
+  const fileUpload = bucket.file(fileName);
+  const stream = fileUpload.createWriteStream({
+    metadata: {
+      contentType: req.file.mimetype,
+    },
+    resumable: false,
   });
 
-  const pr = await ProductData.create({
-    productName,
-    categoryName,
-    description,
-    image: fileurl[0],
+  stream.on("error", (error) => {
+    console.error(error);
+    return res.status(500).send("Error uploading file to Firebase Storage.");
   });
 
-  if (!pr) {
-    return res.status(500).json({
-      message: "error creating user",
-    });
-  }
+  stream.on("finish", () => {
+    // Generate a signed URL for the uploaded file
+    fileUpload.getSignedUrl(
+      {
+        action: "read",
+        expires: "03-09-2491", // Adjust the expiration date as needed
+      },
+      (error, signedUrl) => {
+        if (error) {
+          console.error(error);
+          res.status(500).send("Error generating signed URL.");
+        } else {
+          res.status(200).json({ fileUrl: signedUrl });
+        }
+      }
+    );
+  });
+
+  // const pr = await ProductData.create({
+  //   productName,
+  //   categoryName,
+  //   description,
+  //   image: fileurl[0],
+  // });
+
+  // if (!pr) {
+  //   return res.status(500).json({
+  //     message: "error creating user",
+  //   });
+  // }
   return res.status(201).json({
     success: true,
     message: "Product Created Successfully !",
-    data: pr,
+    // data: pr,
   });
 });
 
@@ -125,4 +166,51 @@ app.get("/", async (req, res) => {
   res.status(200).json({
     message: "successfully Running",
   });
+});
+
+app.post("/api/new", upload.single("image"), async (req, res) => {
+  // create a reference
+  try {
+    // Grab the file
+    const file = req.file;
+    // Format the filename
+    // const timestamp = Date.now();
+    // const name = file.originalname.split(".")[0];
+    // const type = file.originalname.split(".")[1];
+    // const fileName = `${name}_${timestamp}.${type}`;
+    // // Step 1. Create reference for file name in cloud storage
+    // const imageRef = storage.child(fileName);
+    // // Step 2. Upload the file in the bucket storage
+    // const snapshot = await imageRef.put(file.buffer);
+    // // Step 3. Grab the public url
+    // const downloadURL = await snapshot.ref.getDownloadURL();
+
+    const timestamp = Date.now();
+    const name = file.originalname.split(".")[0];
+    const type = file.originalname.split(".")[1];
+    const fileName = `${name}_${timestamp}.${type}`;
+    const str = admin.storage();
+    const bucket = str.bucket("gs://event-bf7c6.appspot.com");
+
+    // Create a file reference within the bucket
+    const fileRef = bucket.file(fileName);
+
+    // Upload the file
+    await fileRef.save(file.buffer, {
+      metadata: {
+        contentType: file.mimetype,
+      },
+    });
+
+    // Get the public URL
+    const downloadURL = await fileRef.getSignedUrl({
+      action: "read",
+      expires: "03-09-2491", // Adjust the expiration date as needed
+    });
+
+    return res.send(downloadURL[0]);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error.message);
+  }
 });

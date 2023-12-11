@@ -10,10 +10,9 @@ async function initializeFirebaseApp() {
     const serviceAccountData = await readFile(serviceAccountPath);
     const serviceAccount = JSON.parse(serviceAccountData);
 
-    admin.initializeApp({
+    let x = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
-
     console.log("Firebase app initialized successfully!");
   } catch (error) {
     console.error("Error initializing Firebase app:", error);
