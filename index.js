@@ -30,21 +30,9 @@ app.listen(9001, () => {
   console.log("Server is running on port 9001");
 });
 
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     cb(null, "./uploads");
-//   },
-//   filename: (req, file, cb) => {
-//     cb(null, file.originalname);
-//   },
-// });
-
-// const upload = multer({ storage: storage });
 const storage2 = multer.memoryStorage(); // Store files in memory instead of writing to disk
 
 const upload = multer({ storage: storage2 });
-
-let fileurl;
 
 app.post("/api/new", upload.single("image"), async (req, res) => {
   const storage = admin.storage();
@@ -219,4 +207,20 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
     console.log(error);
     res.status(400).send(error.message);
   }
+});
+
+app.delete("/api/deleteProduct/:id", async (req, res) => {
+  let id = req.params.id;
+  console.log(id);
+  await ProductData.deleteOne({ _id: id })
+    .then((data) => {
+      return res.status(201).json({
+        success: true,
+        message: "Product Deleted Successfully !",
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+      res.status(501).send(err);
+    });
 });
